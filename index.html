@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Graphplan – Interactive Planning Graph</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; background: #fff; color: #111; padding: 20px 28px; }
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 3px; }
+.desc { font-size: 13px; color: #444; margin-bottom: 14px; line-height: 1.6;
+        padding: 8px 12px; background: #f8f9fa; border-left: 3px solid #2563eb; }
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+button { font-family: inherit; font-size: 13px; padding: 5px 14px; cursor: pointer; border-radius: 3px; border: 1px solid; }
+.btn-blue { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+.btn-blue:hover { background: #1d4ed8; }
+.btn-gray { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+.btn-gray:hover { background: #e5e7eb; }
+.btn-red  { background: #dc2626; color: #fff; border-color: #b91c1c; }
+.btn-red:hover  { background: #b91c1c; }
+.btn-green { background: #16a34a; color: #fff; border-color: #15803d; }
+.btn-green:hover { background: #15803d; }
+button:disabled { opacity: 0.4; cursor: default; }
+label { font-size: 13px; color: #555; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#status { font-size: 12.5px; padding: 4px 10px; border-radius: 3px; background: #f3f4f6; color: #555; margin-left: auto; }
+#status.ok  { background: #dcfce7; color: #166534; }
+#status.err { background: #fee2e2; color: #991b1b; }
+.legend { display: flex; gap: 18px; font-size: 12px; color: #666; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.li { display: flex; align-items: center; gap: 5px; }
+.ld { width:13px;height:13px;border-radius:50%;background:#dbeafe;border:2px solid #3b82f6;flex-shrink:0; }
+.lr { width:18px;height:12px;background:#f9fafb;border:1.5px solid #9ca3af;border-radius:1px;flex-shrink:0; }
+.lm { width:22px;height:0;border-top:2px dashed #dc2626; }
+.le { width:22px;height:2px;background:#9ca3af; }
+.lp { width:22px;height:2px;background:#16a34a; }
+#graph-wrap { border: 1px solid #e5e7eb; overflow-x: auto; background: #fff; margin-bottom: 12px; min-height: 280px; }
+svg { display: block; }
+.panels { display: flex; gap: 12px; flex-wrap: wrap; }
+.panel { flex: 1; min-width: 200px; border: 1px solid #e5e7eb; padding: 10px 14px;
+         font-size: 12.5px; min-height: 80px; border-radius: 3px; background: #fafafa; }
+.panel h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; margin-bottom: 6px; }
+.plan-step  { color: #15803d; margin: 2px 0; font-weight: 600; }
+.mutex-line { color: #dc2626; margin: 3px 0; font-size: 12px; }
+.gray { color: #aaa; font-style: italic; }
+#tip { position: fixed; background: #1e293b; color: #fff; font-size: 12px;
+       padding: 6px 10px; border-radius: 4px; pointer-events: none; white-space: pre;
+       max-width: 300px; line-height: 1.5; z-index: 99; display: none; }
+
+/* ── Modal ──────────────────────────────────────────────────────── */
+#modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+            z-index: 200; overflow-y: auto; padding: 32px 16px; }
+#modal-box { background: #fff; max-width: 740px; margin: 0 auto; border-radius: 6px;
+             padding: 24px 28px; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+#modal-box h2 { font-size: 17px; font-weight: 700; margin-bottom: 16px;
+                display: flex; justify-content: space-between; align-items: center; }
+.ms { margin-bottom: 18px; }
+.ms-hd { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+         color: #6b7280; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+.ms input[type=text] { font-family: inherit; }
+
+/* tags */
+.tag { display: inline-flex; align-items: center; padding: 3px 9px; font-size: 12px;
+       border-radius: 20px; border: 1.5px solid #d1d5db; background: #f9fafb;
+       cursor: pointer; user-select: none; transition: background .1s; }
+.tag:hover { background: #f3f4f6; }
+.tag-on   { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+.tag-goal { background: #fef9c3; border-color: #ca8a04; color: #854d0e; }
+.tag-pre  { background: #f0fdf4; border-color: #4ade80; color: #166534; }
+.tag-add  { background: #eff6ff; border-color: #60a5fa; color: #1d4ed8; }
+.tag-del  { background: #fff1f2; border-color: #fb7185; color: #9f1239; }
+
+/* operator card */
+.op-card { border: 1px solid #e5e7eb; border-radius: 5px; padding: 12px 14px;
+           margin-bottom: 10px; background: #fafafa; }
+.op-field-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; }
+.op-field-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                  color: #9ca3af; width: 84px; flex-shrink: 0; padding-top: 5px; }
+.op-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.btn-sm { font-size: 11px; padding: 2px 8px; }
+.btn-sm-red { font-size: 11px; padding: 2px 8px; background: #fee2e2; color: #991b1b;
+              border: 1px solid #fca5a5; border-radius: 3px; cursor: pointer; }
+.btn-sm-red:hover { background: #fecaca; }
+input.field { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 13px; font-family: inherit; }
+.modal-footer { display: flex; gap: 8px; padding-top: 14px; border-top: 1px solid #e5e7eb; margin-top: 6px; flex-wrap: wrap; }
+.err-msg { color: #dc2626; font-size: 12.5px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1 id="page-title">Graphplan: Getting Ready for Class</h1>
+<p class="desc" id="page-desc">
+  <strong>Scenario:</strong> You wake up and need to get to class.
+  You start <em>asleep, hungry</em> and <em>at home</em>.&nbsp;
+  <strong>Goals (★):</strong> be <em>awake, fed, dressed</em> and <em>at class</em>.<br>
+  Click <strong>Step</strong> to expand the planning graph, then <strong>Search</strong> to find a plan.
+  Use <strong>Edit Domain</strong> to create your own scenario.
+</p>
+
+<div class="toolbar">
+  <button class="btn-blue"  id="btn-step">▶ Step</button>
+  <button class="btn-gray"  id="btn-auto">Auto ▷▷</button>
+  <button class="btn-gray"  id="btn-search">Search for Plan</button>
+  <button class="btn-red"   id="btn-reset">↺ Reset</button>
+  <button class="btn-green" id="btn-edit">✎ Edit Domain</button>
+  <label><input type="checkbox" id="chk-noops"> show no-ops</label>
+  <label><input type="checkbox" id="chk-mutex" checked> show mutex</label>
+  <span id="status">Stage 0 — click Step to expand</span>
+</div>
+
+<div class="legend">
+  <div class="li"><div class="ld"></div> Proposition</div>
+  <div class="li"><div class="lr"></div> Action</div>
+  <div class="li"><div class="le"></div> Pre / Effect</div>
+  <div class="li"><div class="lm"></div> Mutex</div>
+  <div class="li"><div class="lp"></div> Plan path</div>
+</div>
+
+<div id="graph-wrap"><svg id="svg"></svg></div>
+
+<div class="panels">
+  <div class="panel"><h4>Plan</h4><div id="d-plan"><span class="gray">No plan yet — click Search after extending</span></div></div>
+  <div class="panel"><h4>Mutex at latest stage</h4><div id="d-mutex"><span class="gray">Extend the graph to see mutex</span></div></div>
+  <div class="panel"><h4>Props at each level</h4><div id="d-levels"></div></div>
+</div>
+<div id="tip"></div>
+
+<!-- ── Modal ──────────────────────────────────────────────────────────────── -->
+<div id="modal-bg">
+  <div id="modal-box">
+    <h2>Edit Domain <button class="btn-gray btn-sm" onclick="closeModal()">✕ Close</button></h2>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Mutable domain (shared between algorithm and editor) ──────────────────────
+const PL   = { asleep:'Asleep', awake:'Awake', hungry:'Hungry', fed:'Fed', at_home:'At Home', dressed:'Dressed', at_class:'At Class' };
+const INIT  = ['asleep','hungry','at_home'];
+const GOALS = ['awake','fed','dressed','at_class'];
+const OPS   = [
+  { name:'wake_up',       label:'Wake Up',         pre:['asleep'],                    add:['awake'],    del:['asleep']   },
+  { name:'eat_breakfast', label:'Eat Breakfast',    pre:['awake','hungry','at_home'],   add:['fed'],      del:['hungry']   },
+  { name:'get_dressed',   label:'Get Dressed',      pre:['awake','at_home'],            add:['dressed'],  del:[]           },
+  { name:'commute',       label:'Commute to Class', pre:['awake','dressed','at_home'],  add:['at_class'], del:['at_home']  },
+];
+
+// Working copy used by the editor (plain objects, easy to mutate)
+let ED = null;
+
+// ── Algorithm state ───────────────────────────────────────────────────────────
+let propLevels   = [new Set(INIT)];
+let actionLevels = [];
+let propMutex    = [new Map()];
+let actionMutex  = [];
+let plan         = null;
+let stages       = 0;
+let autoTimer    = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const pkey   = (a,b) => a<b ? `${a}::${b}` : `${b}::${a}`;
+const isNoop = n => n.startsWith('noop_');
+const lp     = n => PL[n] || n;
+
+function getAction(name) {
+  if (isNoop(name)) { const p=name.slice(5); return { name, label:`noop(${lp(p)})`, pre:[p], add:[p], del:[] }; }
+  return OPS.find(o => o.name === name);
+}
+function arePMutex(lvl,p1,p2){ return p1!==p2 && (propMutex[lvl]?.has(pkey(p1,p2))??false); }
+function areAMutex(lvl,a1,a2){ return a1!==a2 && (actionMutex[lvl]?.has(pkey(a1,a2))??false); }
+
+// ── Extend ────────────────────────────────────────────────────────────────────
+function extend() {
+  const lvl = stages, cp = propLevels[lvl];
+  const acts = [];
+  for (const op of OPS) {
+    if (!op.pre.every(p=>cp.has(p))) continue;
+    let bad=false;
+    for (let i=0;i<op.pre.length&&!bad;i++) for (let j=i+1;j<op.pre.length&&!bad;j++) if (arePMutex(lvl,op.pre[i],op.pre[j])) bad=true;
+    if (!bad) acts.push(op.name);
+  }
+  for (const p of cp) acts.push(`noop_${p}`);
+  actionLevels.push(acts);
+
+  const am = new Map();
+  for (let i=0;i<acts.length;i++) for (let j=i+1;j<acts.length;j++) {
+    const a1=acts[i],a2=acts[j],o1=getAction(a1),o2=getAction(a2);
+    let reason=null;
+    for (const d of o1.del) {
+      if (o2.pre.includes(d)){reason=`${o1.label} deletes "${lp(d)}" needed by ${o2.label}`;break;}
+      if (o2.add.includes(d)){reason=`${o1.label} deletes "${lp(d)}" added by ${o2.label}`;break;}
+    }
+    if (!reason) for (const d of o2.del) {
+      if (o1.pre.includes(d)){reason=`${o2.label} deletes "${lp(d)}" needed by ${o1.label}`;break;}
+      if (o1.add.includes(d)){reason=`${o2.label} deletes "${lp(d)}" added by ${o1.label}`;break;}
+    }
+    if (!reason) { outer: for (const p1 of o1.pre) for (const p2 of o2.pre) if (arePMutex(lvl,p1,p2)){reason=`Both need "${lp(p1)}" and "${lp(p2)}" (mutex)`;break outer;} }
+    if (reason) am.set(pkey(a1,a2),reason);
+  }
+  actionMutex.push(am);
+
+  const np=new Set();
+  for (const a of acts) for (const p of getAction(a).add) np.add(p);
+  propLevels.push(np);
+
+  const pm=new Map(), pa=[...np];
+  for (let i=0;i<pa.length;i++) for (let j=i+1;j<pa.length;j++) {
+    const p1=pa[i],p2=pa[j];
+    const ach1=acts.filter(a=>getAction(a).add.includes(p1));
+    const ach2=acts.filter(a=>getAction(a).add.includes(p2));
+    let allMux=ach1.length>0&&ach2.length>0;
+    outer2: for (const a1 of ach1) for (const a2 of ach2) { if(a1===a2){allMux=false;break outer2;} if(!areAMutex(lvl,a1,a2)){allMux=false;break outer2;} }
+    if (allMux) pm.set(pkey(p1,p2),`All ways to achieve these are mutually exclusive`);
+  }
+  propMutex.push(pm);
+  stages++;
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function search() {
+  const memo=new Map();
+  function solve(t,goals) {
+    const ga=[...goals].sort();
+    if (t===0) return ga.every(g=>propLevels[0].has(g))?[]:null;
+    const key=`${t}:${ga.join(',')}`;
+    if (memo.has(key)) return memo.get(key);
+    memo.set(key,null);
+    for (const g of ga) if (!propLevels[t].has(g)) return null;
+    for (let i=0;i<ga.length;i++) for (let j=i+1;j<ga.length;j++) if (arePMutex(t,ga[i],ga[j])) return null;
+    function assign(gi,chosen) {
+      if (gi===ga.length) {
+        for (let i=0;i<chosen.length;i++) for (let j=i+1;j<chosen.length;j++) if (areAMutex(t-1,chosen[i],chosen[j])) return null;
+        const sub=new Set();
+        for (const a of chosen) for (const p of getAction(a).pre) sub.add(p);
+        const prev=solve(t-1,sub);
+        if (prev!==null) return [...prev,chosen];
+        return null;
+      }
+      const g=ga[gi];
+      for (const a of chosen) if (getAction(a).add.includes(g)) return assign(gi+1,chosen);
+      for (const a of actionLevels[t-1]) {
+        if (!getAction(a).add.includes(g)) continue;
+        if (chosen.every(c=>!areAMutex(t-1,a,c))) { const r=assign(gi+1,[...chosen,a]); if (r!==null) return r; }
+      }
+      return null;
+    }
+    const r=assign(0,[]);
+    memo.set(key,r);
+    return r;
+  }
+  for (let t=stages;t>=1;t--) {
+    if (!GOALS.every(g=>propLevels[t]?.has(g))) continue;
+    const r=solve(t,new Set(GOALS));
+    if (r!==null){ plan=r.map((acts,i)=>({t:i+1,acts:acts.filter(a=>!isNoop(a))})); return; }
+  }
+  plan=false;
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+const PCW=162,ACW=156,PR=13,AW=118,AH=24,YGAP=54,YOFF=64;
+const propColX = i => i*(PCW+ACW);
+const actColX  = i => (i-1)*(PCW+ACW)+PCW;
+const svgW     = () => stages===0?PCW:(stages+1)*PCW+stages*ACW;
+function visibleActs(idx) {
+  if (!actionLevels[idx]) return [];
+  return document.getElementById('chk-noops').checked ? actionLevels[idx] : actionLevels[idx].filter(a=>!isNoop(a));
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const showMutex=document.getElementById('chk-mutex').checked;
+  const svg=document.getElementById('svg');
+  const propPos={},actPos={};
+
+  for (let i=0;i<=stages;i++) {
+    propPos[i]={};
+    const cx=propColX(i)+PCW/2;
+    [...propLevels[i]].sort().forEach((p,idx)=>{ propPos[i][p]={x:cx,y:YOFF+idx*YGAP}; });
+  }
+  for (let i=0;i<stages;i++) {
+    actPos[i]={};
+    const cx=actColX(i+1)+ACW/2;
+    visibleActs(i).forEach((a,idx)=>{ actPos[i][a]={x:cx,y:YOFF+idx*YGAP}; });
+  }
+
+  let maxNodes=0;
+  for (let i=0;i<=stages;i++) maxNodes=Math.max(maxNodes,propLevels[i].size);
+  for (let i=0;i<stages;i++) maxNodes=Math.max(maxNodes,visibleActs(i).length);
+  const H=YOFF+maxNodes*YGAP+40, W=svgW();
+
+  const planSet=new Set();
+  if (plan&&plan!==false) for (const step of plan) for (const a of step.acts) planSet.add(`${step.t-1}::${a}`);
+
+  let h='';
+  for (let i=0;i<=stages;i++) {
+    const x=propColX(i);
+    h+=`<rect x="${x}" y="0" width="${PCW}" height="${H}" fill="#eff6ff"/>`;
+    h+=`<text x="${x+PCW/2}" y="20" text-anchor="middle" font-size="12" font-weight="700" fill="#1d4ed8" font-family="Arial">Prop Level ${i}</text>`;
+    h+=`<line x1="${x}" y1="28" x2="${x+PCW}" y2="28" stroke="#bfdbfe" stroke-width="1"/>`;
+  }
+  for (let i=1;i<=stages;i++) {
+    const x=actColX(i);
+    h+=`<rect x="${x}" y="0" width="${ACW}" height="${H}" fill="#f9fafb"/>`;
+    h+=`<text x="${x+ACW/2}" y="20" text-anchor="middle" font-size="12" font-weight="700" fill="#6b7280" font-family="Arial">Action Level ${i}</text>`;
+    h+=`<line x1="${x}" y1="28" x2="${x+ACW}" y2="28" stroke="#e5e7eb" stroke-width="1"/>`;
+  }
+
+  // Edges
+  for (let i=0;i<stages;i++) {
+    for (const aName of visibleActs(i)) {
+      const op=getAction(aName),apos=actPos[i][aName];
+      if (!apos) continue;
+      const inPlan=planSet.has(`${i}::${aName}`);
+      const ec=inPlan?'#16a34a':'#94a3b8', ew=inPlan?2:1.2, eo=inPlan?1:0.65;
+      for (const p of op.pre) {
+        const pp=propPos[i][p]; if (!pp) continue;
+        h+=`<line x1="${pp.x+PR}" y1="${pp.y}" x2="${apos.x-AW/2}" y2="${apos.y}" stroke="${ec}" stroke-width="${ew}" opacity="${eo}" style="pointer-events:none"/>`;
+      }
+      if (propLevels[i+1]) for (const p of op.add) {
+        const pp=propPos[i+1]?.[p]; if (!pp) continue;
+        h+=`<line x1="${apos.x+AW/2}" y1="${apos.y}" x2="${pp.x-PR}" y2="${pp.y}" stroke="${ec}" stroke-width="${ew}" opacity="${eo}" style="pointer-events:none"/>`;
+      }
+    }
+  }
+
+  // Mutex arcs
+  if (showMutex) {
+    for (let i=0;i<=stages;i++) {
+      if (!propMutex[i]) continue;
+      for (const [k,reason] of propMutex[i]) {
+        const [p1,p2]=k.split('::');
+        const pos1=propPos[i]?.[p1],pos2=propPos[i]?.[p2]; if (!pos1||!pos2) continue;
+        const bx=pos1.x-50, my=(pos1.y+pos2.y)/2, midX=.5*pos1.x+.5*bx;
+        const tt=esc(`${lp(p1)} ↔ ${lp(p2)}\n${reason}`);
+        h+=`<path d="M${pos1.x-PR},${pos1.y} Q${bx},${my} ${pos2.x-PR},${pos2.y}" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="8,4" class="tip-el" data-tip="${tt}" style="cursor:help"/>`;
+        h+=`<text x="${midX}" y="${my+4}" text-anchor="middle" font-size="13" font-weight="700" fill="#dc2626" style="pointer-events:none">✕</text>`;
+      }
+    }
+    for (let i=0;i<stages;i++) {
+      if (!actionMutex[i]) continue;
+      for (const [k,reason] of actionMutex[i]) {
+        const [a1,a2]=k.split('::');
+        const pos1=actPos[i]?.[a1],pos2=actPos[i]?.[a2]; if (!pos1||!pos2) continue;
+        const bx=pos1.x+AW/2+46, my=(pos1.y+pos2.y)/2, midX=.5*(pos1.x+AW/2)+.5*bx;
+        const tt=esc(`${getAction(a1).label} ↔ ${getAction(a2).label}\n${reason}`);
+        h+=`<path d="M${pos1.x+AW/2},${pos1.y} Q${bx},${my} ${pos2.x+AW/2},${pos2.y}" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-dasharray="8,4" class="tip-el" data-tip="${tt}" style="cursor:help"/>`;
+        h+=`<text x="${midX}" y="${my+4}" text-anchor="middle" font-size="13" font-weight="700" fill="#dc2626" style="pointer-events:none">✕</text>`;
+      }
+    }
+  }
+
+  // Prop nodes
+  for (let i=0;i<=stages;i++) for (const p of [...propLevels[i]].sort()) {
+    const pos=propPos[i][p], isGoal=GOALS.includes(p);
+    h+=`<circle cx="${pos.x}" cy="${pos.y}" r="${PR}" fill="${isGoal?'#bfdbfe':'#dbeafe'}" stroke="${isGoal?'#1d4ed8':'#3b82f6'}" stroke-width="${isGoal?2.5:1.5}" class="tip-el" data-tip="${esc(pTip(i,p))}" style="cursor:default"/>`;
+    h+=`<text x="${pos.x}" y="${pos.y-PR-4}" text-anchor="middle" font-size="11" fill="#1e3a8a" font-family="Arial" style="pointer-events:none">${esc(lp(p))}${isGoal?' ★':''}</text>`;
+  }
+
+  // Action nodes
+  for (let i=0;i<stages;i++) for (const aName of visibleActs(i)) {
+    const op=getAction(aName),pos=actPos[i][aName]; if (!pos) continue;
+    const inPlan=planSet.has(`${i}::${aName}`),noop=isNoop(aName);
+    const fill=inPlan?'#dcfce7':noop?'#f9fafb':'#fff';
+    const stroke=inPlan?'#16a34a':noop?'#d1d5db':'#9ca3af';
+    h+=`<rect x="${pos.x-AW/2}" y="${pos.y-AH/2}" width="${AW}" height="${AH}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="${inPlan?2.5:1.5}" class="tip-el" data-tip="${esc(aTip(i,aName))}" style="cursor:default"/>`;
+    h+=`<text x="${pos.x}" y="${pos.y+4}" text-anchor="middle" font-size="11" fill="${inPlan?'#15803d':noop?'#9ca3af':'#374151'}" font-family="Arial" style="pointer-events:none;${noop?'font-style:italic':''}">${esc(op.label)}</text>`;
+  }
+
+  svg.innerHTML=h;
+  svg.setAttribute('width',W); svg.setAttribute('height',H); svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+  const tipEl=document.getElementById('tip');
+  svg.querySelectorAll('.tip-el').forEach(el=>{
+    el.addEventListener('mouseenter',e=>{ tipEl.textContent=el.getAttribute('data-tip'); tipEl.style.display='block'; tipEl.style.left=(e.clientX+14)+'px'; tipEl.style.top=(e.clientY-10)+'px'; });
+    el.addEventListener('mousemove',e=>{ tipEl.style.left=(e.clientX+14)+'px'; tipEl.style.top=(e.clientY-10)+'px'; });
+    el.addEventListener('mouseleave',()=>{ tipEl.style.display='none'; });
+  });
+
+  updatePanels();
+}
+
+function pTip(lvl,p) {
+  let s=`${lp(p)}  (Prop Level ${lvl})`;
+  if (GOALS.includes(p)&&lvl===0) s+=' [Initial + Goal ★]'; else if (GOALS.includes(p)) s+=' [Goal ★]'; else if (INIT.includes(p)&&lvl===0) s+=' [Initial]';
+  const mx=[...(propMutex[lvl]?.entries()||[])].filter(([k])=>k.includes(p));
+  if (mx.length) s+=`\nMutex with: ${mx.map(([k])=>{ const [a,b]=k.split('::'); return lp(p===a?b:a); }).join(', ')}`;
+  return s;
+}
+function aTip(lvl,aName) {
+  const op=getAction(aName);
+  let s=`${op.label}  (Action Level ${lvl+1})\nPre: ${op.pre.map(lp).join(', ')||'—'}\nAdd: ${op.add.map(lp).join(', ')||'—'}\nDel: ${op.del.map(lp).join(', ')||'—'}`;
+  const mx=[...(actionMutex[lvl]?.entries()||[])].filter(([k])=>k.includes(aName));
+  if (mx.length) s+=`\nMutex with: ${mx.map(([k])=>{ const [a,b]=k.split('::'); return getAction(aName===a?b:a).label; }).join(', ')}`;
+  return s;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function updatePanels() {
+  const dp=document.getElementById('d-plan');
+  if (!plan) dp.innerHTML='<span class="gray">No plan yet — click Search</span>';
+  else if (plan===false) dp.innerHTML='<span style="color:#dc2626">No plan found yet — extend further</span>';
+  else dp.innerHTML=plan.map(({t,acts})=>`<div class="plan-step">Step ${t}: ${acts.length?acts.map(a=>getAction(a).label).join(', '):'(only no-ops)'}</div>`).join('');
+
+  const dm=document.getElementById('d-mutex');
+  if (stages===0){ dm.innerHTML='<span class="gray">Extend to see mutex</span>'; }
+  else {
+    const lines=[];
+    for (const [k,r] of propMutex[stages]) { const [p1,p2]=k.split('::'); lines.push(`<div class="mutex-line"><strong>P${stages}:</strong> ${lp(p1)} ↔ ${lp(p2)}<br><span style="margin-left:10px;color:#ef9999;font-size:11px">${r}</span></div>`); }
+    for (const [k,r] of actionMutex[stages-1]) { const [a1,a2]=k.split('::'); lines.push(`<div class="mutex-line"><strong>A${stages}:</strong> ${getAction(a1).label} ↔ ${getAction(a2).label}<br><span style="margin-left:10px;color:#ef9999;font-size:11px">${r}</span></div>`); }
+    dm.innerHTML=lines.length?lines.join(''):'<span class="gray">No mutex at this stage</span>';
+  }
+
+  const dl=document.getElementById('d-levels');
+  dl.innerHTML=Array.from({length:stages+1},(_,i)=>
+    `<div style="font-size:12px;color:#555;margin:2px 0"><strong>P${i}:</strong> {${[...propLevels[i]].sort().map(p=>`<span style="color:${GOALS.includes(p)?'#1d4ed8':'inherit'}">${lp(p)}</span>`).join(', ')}}</div>`
+  ).join('');
+}
+
+function updateStatus() {
+  const el=document.getElementById('status');
+  if (plan&&plan!==false){ el.textContent=`Plan found in ${plan.length} step${plan.length!==1?'s':''} (${stages} stage${stages!==1?'s':''})`; el.className='ok'; }
+  else if (plan===false){ el.textContent=`No plan at stage ${stages} — extend further`; el.className='err'; }
+  else { el.textContent=`Stage ${stages}${stages===0?' — click Step to expand':''}`; el.className=''; }
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-step').addEventListener('click',()=>{ if(stages>=8)return; extend();plan=null;render();updateStatus(); });
+
+document.getElementById('btn-auto').addEventListener('click',function(){
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;this.textContent='Auto ▷▷';return;}
+  this.textContent='Stop ■';
+  autoTimer=setInterval(()=>{
+    if(stages>=8){done();return;} extend();search();render();updateStatus();
+    if(plan!==null)done();
+  },1100);
+  function done(){ clearInterval(autoTimer);autoTimer=null;document.getElementById('btn-auto').textContent='Auto ▷▷'; }
+});
+
+document.getElementById('btn-search').addEventListener('click',()=>{
+  if(stages===0){alert('Extend at least once before searching.');return;}
+  search();render();updateStatus();
+});
+
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;document.getElementById('btn-auto').textContent='Auto ▷▷';}
+  propLevels=[new Set(INIT)];actionLevels=[];propMutex=[new Map()];actionMutex=[];plan=null;stages=0;
+  render();updateStatus();
+});
+
+document.getElementById('chk-noops').addEventListener('change',render);
+document.getElementById('chk-mutex').addEventListener('change',render);
+
+// ── Edit Domain Modal ─────────────────────────────────────────────────────────
+document.getElementById('btn-edit').addEventListener('click', openModal);
+document.getElementById('modal-bg').addEventListener('click', e => { if(e.target===document.getElementById('modal-bg')) closeModal(); });
+
+function openModal() {
+  // Deep-copy current domain into ED
+  ED = {
+    title: document.getElementById('page-title').textContent.replace('Graphplan: ',''),
+    props: Object.entries(PL).map(([id,label])=>({ id, label })),
+    init:  [...INIT],
+    goals: [...GOALS],
+    ops:   OPS.map(o=>({ name:o.name, label:o.label, pre:[...o.pre], add:[...o.add], del:[...o.del] }))
+  };
+  renderModal();
+  document.getElementById('modal-bg').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('modal-bg').style.display = 'none';
+}
+
+function saveModalInputs() {
+  // Flush live input values into ED before any re-render
+  const titleEl = document.getElementById('ed-title');
+  if (titleEl) ED.title = titleEl.value;
+  document.querySelectorAll('.op-label-input').forEach((inp,i) => { if (ED.ops[i]) ED.ops[i].label = inp.value; });
+  const newPropEl = document.getElementById('new-prop-input');
+  // (don't flush new-prop — it's ephemeral)
+}
+
+function renderModal() {
+  document.getElementById('modal-body').innerHTML = buildModalHTML();
+  // Re-attach input listeners that must survive re-render
+  document.getElementById('new-prop-input')?.addEventListener('keydown', e => { if(e.key==='Enter') addProp(); });
+}
+
+function buildModalHTML() {
+  let h = '';
+
+  // Scenario name
+  h += `<div class="ms">
+    <div class="ms-hd">Scenario Name</div>
+    <input id="ed-title" class="field" type="text" value="${esc(ED.title)}" style="width:320px" placeholder="e.g. Making a Sandwich">
+  </div>`;
+
+  // Propositions
+  h += `<div class="ms"><div class="ms-hd">Propositions <span style="font-weight:400;color:#aaa">(click × to remove)</span></div>`;
+  h += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`;
+  for (const p of ED.props)
+    h += `<span class="tag" onclick="removeProp('${p.id}')" title="Remove '${esc(p.label)}'">${esc(p.label)} <strong>×</strong></span>`;
+  h += `</div>`;
+  h += `<div style="display:flex;gap:6px;align-items:center">
+    <input id="new-prop-input" class="field" type="text" placeholder="New proposition label…" style="width:200px">
+    <button class="btn-gray btn-sm" onclick="addProp()">+ Add</button>
+  </div></div>`;
+
+  // Initial state
+  h += `<div class="ms"><div class="ms-hd">Initial State <span style="font-weight:400;color:#aaa">(blue = true at start)</span></div>`;
+  h += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
+  for (const p of ED.props) {
+    const on = ED.init.includes(p.id);
+    h += `<span class="tag ${on?'tag-on':''}" onclick="toggleInit('${p.id}')">${esc(p.label)}${on?' ✓':''}</span>`;
+  }
+  h += `</div></div>`;
+
+  // Goals
+  h += `<div class="ms"><div class="ms-hd">Goals ★ <span style="font-weight:400;color:#aaa">(yellow = goal)</span></div>`;
+  h += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
+  for (const p of ED.props) {
+    const on = ED.goals.includes(p.id);
+    h += `<span class="tag ${on?'tag-goal':''}" onclick="toggleGoal('${p.id}')">${esc(p.label)}${on?' ★':''}</span>`;
+  }
+  h += `</div></div>`;
+
+  // Operators
+  h += `<div class="ms"><div class="ms-hd">Operators</div>`;
+  ED.ops.forEach((op, oi) => {
+    h += `<div class="op-card">`;
+    h += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <input class="field op-label-input" type="text" value="${esc(op.label)}" placeholder="Operator name" style="width:220px;font-weight:600">
+      <button class="btn-sm-red" onclick="removeOp(${oi})">× Remove</button>
+    </div>`;
+    const fieldDefs = [
+      { key:'pre', label:'Preconditions', cls:'tag-pre' },
+      { key:'add', label:'Add Effects',   cls:'tag-add' },
+      { key:'del', label:'Delete Effects',cls:'tag-del' },
+    ];
+    for (const {key,label,cls} of fieldDefs) {
+      h += `<div class="op-field-row"><span class="op-field-label">${label}</span><div class="op-tags">`;
+      if (ED.props.length === 0) { h += `<span style="font-size:12px;color:#aaa">no props defined</span>`; }
+      for (const p of ED.props) {
+        const on = op[key].includes(p.id);
+        h += `<span class="tag ${on?cls:''}" onclick="toggleOpField(${oi},'${key}','${p.id}')">${esc(p.label)}${on?' ✓':''}</span>`;
+      }
+      h += `</div></div>`;
+    }
+    h += `</div>`;
+  });
+  h += `<button class="btn-gray btn-sm" onclick="addOp()" style="margin-top:4px">+ Add Operator</button>`;
+  h += `</div>`;
+
+  // Footer
+  h += `<div class="modal-footer">
+    <button class="btn-blue" onclick="applyDomain()">✓ Apply &amp; Reset Graph</button>
+    <button class="btn-gray" onclick="resetToExample()">↺ Load Example</button>
+    <button class="btn-gray" onclick="closeModal()">Cancel</button>
+    <span id="modal-err" class="err-msg"></span>
+  </div>`;
+
+  return h;
+}
+
+// ── Modal action handlers ─────────────────────────────────────────────────────
+function toggleInit(pid)  { saveModalInputs(); const i=ED.init.indexOf(pid); if(i>=0)ED.init.splice(i,1); else ED.init.push(pid); renderModal(); }
+function toggleGoal(pid)  { saveModalInputs(); const i=ED.goals.indexOf(pid); if(i>=0)ED.goals.splice(i,1); else ED.goals.push(pid); renderModal(); }
+function toggleOpField(oi,field,pid) {
+  saveModalInputs();
+  const arr=ED.ops[oi][field], i=arr.indexOf(pid);
+  if(i>=0) arr.splice(i,1); else arr.push(pid);
+  renderModal();
+}
+
+function addProp() {
+  saveModalInputs();
+  const input = document.getElementById('new-prop-input');
+  const label = input.value.trim();
+  if (!label) return;
+  const id = label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'') || `prop_${Date.now()}`;
+  if (ED.props.some(p=>p.id===id)) { alert(`A proposition named "${label}" already exists.`); return; }
+  ED.props.push({ id, label });
+  renderModal();
+}
+
+function removeProp(pid) {
+  saveModalInputs();
+  if (!confirm(`Remove proposition "${ED.props.find(p=>p.id===pid)?.label}"? It will be removed from all operators.`)) return;
+  ED.props  = ED.props.filter(p=>p.id!==pid);
+  ED.init   = ED.init.filter(id=>id!==pid);
+  ED.goals  = ED.goals.filter(id=>id!==pid);
+  for (const op of ED.ops) { op.pre=op.pre.filter(id=>id!==pid); op.add=op.add.filter(id=>id!==pid); op.del=op.del.filter(id=>id!==pid); }
+  renderModal();
+}
+
+function addOp() {
+  saveModalInputs();
+  ED.ops.push({ name:`op_${ED.ops.length}`, label:'New Action', pre:[], add:[], del:[] });
+  renderModal();
+}
+
+function removeOp(oi) {
+  saveModalInputs();
+  ED.ops.splice(oi,1);
+  renderModal();
+}
+
+function applyDomain() {
+  saveModalInputs();
+  // Update operator names from labels
+  for (const op of ED.ops) op.name = op.label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'') || `op_${Math.random().toString(36).slice(2,6)}`;
+
+  // Validate
+  const errEl = document.getElementById('modal-err');
+  if (ED.props.length === 0) { errEl.textContent = 'Add at least one proposition.'; return; }
+  if (ED.init.length === 0)  { errEl.textContent = 'Set at least one initial proposition.'; return; }
+  if (ED.goals.length === 0) { errEl.textContent = 'Set at least one goal.'; return; }
+  if (ED.ops.length === 0)   { errEl.textContent = 'Add at least one operator.'; return; }
+  for (const op of ED.ops) if (op.add.length===0) { errEl.textContent = `"${op.label}" must have at least one Add effect.`; return; }
+
+  // Apply into live domain objects (mutate in-place so references stay valid)
+  for (const k of Object.keys(PL)) delete PL[k];
+  for (const p of ED.props) PL[p.id] = p.label;
+
+  INIT.length  = 0; INIT.push(...ED.init);
+  GOALS.length = 0; GOALS.push(...ED.goals);
+  OPS.length   = 0;
+  for (const op of ED.ops) OPS.push({ name:op.name, label:op.label, pre:[...op.pre], add:[...op.add], del:[...op.del] });
+
+  // Update page header
+  const title = ED.title.trim() || 'Custom Domain';
+  document.getElementById('page-title').textContent = `Graphplan: ${title}`;
+  document.getElementById('page-desc').innerHTML =
+    `<strong>Custom domain:</strong> ${esc(title)}. ` +
+    `Initial: <em>${ED.init.map(id=>PL[id]).join(', ')}</em>. ` +
+    `Goals: <em>${ED.goals.map(id=>PL[id]).join(', ')}</em>. ` +
+    `Operators: <em>${ED.ops.map(o=>o.label).join(', ')}</em>.`;
+
+  // Reset graph
+  propLevels=[new Set(INIT)];actionLevels=[];propMutex=[new Map()];actionMutex=[];plan=null;stages=0;
+  render(); updateStatus();
+  closeModal();
+}
+
+function resetToExample() {
+  ED = {
+    title: 'Getting Ready for Class',
+    props: [ {id:'asleep',label:'Asleep'},{id:'awake',label:'Awake'},{id:'hungry',label:'Hungry'},{id:'fed',label:'Fed'},{id:'at_home',label:'At Home'},{id:'dressed',label:'Dressed'},{id:'at_class',label:'At Class'} ],
+    init:  ['asleep','hungry','at_home'],
+    goals: ['awake','fed','dressed','at_class'],
+    ops: [
+      {name:'wake_up',       label:'Wake Up',         pre:['asleep'],                    add:['awake'],    del:['asleep']},
+      {name:'eat_breakfast', label:'Eat Breakfast',    pre:['awake','hungry','at_home'],   add:['fed'],      del:['hungry']},
+      {name:'get_dressed',   label:'Get Dressed',      pre:['awake','at_home'],            add:['dressed'],  del:[]},
+      {name:'commute',       label:'Commute to Class', pre:['awake','dressed','at_home'],  add:['at_class'], del:['at_home']},
+    ]
+  };
+  renderModal();
+}
+
+// Initial render
+render(); updateStatus();
+</script>
+</body>
+</html>
