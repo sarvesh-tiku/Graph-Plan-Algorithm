@@ -44,6 +44,38 @@ svg { display: block; }
        padding: 6px 10px; border-radius: 4px; pointer-events: none; white-space: pre;
        max-width: 300px; line-height: 1.5; z-index: 99; display: none; }
 
+/* ── Tour ───────────────────────────────────────────────────────── */
+#tour-overlay { display: none; position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
+#tour-spotlight {
+  position: fixed; z-index: 1001; border-radius: 5px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.58);
+  transition: top .28s ease, left .28s ease, width .28s ease, height .28s ease;
+}
+#tour-card {
+  position: fixed; z-index: 1002; background: #fff; border-radius: 8px;
+  padding: 18px 20px 14px; width: 300px;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.28);
+  transition: top .28s ease, left .28s ease;
+  pointer-events: all;
+}
+#tour-card .tc-step  { font-size: 11px; color: #9ca3af; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+#tour-card .tc-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: #111; }
+#tour-card .tc-body  { font-size: 13px; color: #444; line-height: 1.55; margin-bottom: 14px; }
+#tour-card .tc-foot  { display: flex; align-items: center; gap: 8px; }
+#tour-card .tc-dots  { display: flex; gap: 5px; flex: 1; }
+#tour-card .tc-dot   { width: 7px; height: 7px; border-radius: 50%; background: #e5e7eb; }
+#tour-card .tc-dot.active { background: #2563eb; }
+.tc-arrow {
+  position: fixed; z-index: 1002; width: 0; height: 0; pointer-events: none;
+  transition: top .28s ease, left .28s ease;
+}
+#btn-help {
+  width: 28px; height: 28px; border-radius: 50%; padding: 0;
+  background: #f3f4f6; border: 1px solid #d1d5db; color: #374151;
+  font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center;
+}
+#btn-help:hover { background: #e5e7eb; }
+
 /* ── Modal ──────────────────────────────────────────────────────── */
 #modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
             z-index: 200; overflow-y: auto; padding: 32px 16px; }
@@ -100,6 +132,7 @@ input.field { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 3px; f
   <button class="btn-gray"  id="btn-search">Search for Plan</button>
   <button class="btn-red"   id="btn-reset">↺ Reset</button>
   <button class="btn-green" id="btn-edit">✎ Edit Domain</button>
+  <button id="btn-help" title="Replay tour">?</button>
   <label><input type="checkbox" id="chk-noops"> show no-ops</label>
   <label><input type="checkbox" id="chk-mutex" checked> show mutex</label>
   <span id="status">Stage 0 — click Step to expand</span>
@@ -121,6 +154,20 @@ input.field { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 3px; f
   <div class="panel"><h4>Props at each level</h4><div id="d-levels"></div></div>
 </div>
 <div id="tip"></div>
+
+<!-- ── Tour elements ─────────────────────────────────────────────────────────── -->
+<div id="tour-overlay"></div>
+<div id="tour-spotlight"></div>
+<div id="tour-card" style="display:none">
+  <div class="tc-step" id="tc-step"></div>
+  <div class="tc-title" id="tc-title"></div>
+  <div class="tc-body"  id="tc-body"></div>
+  <div class="tc-foot">
+    <div class="tc-dots" id="tc-dots"></div>
+    <button class="btn-gray btn-sm" id="tc-skip">Skip</button>
+    <button class="btn-blue btn-sm" id="tc-next">Next →</button>
+  </div>
+</div>
 
 <!-- ── Modal ──────────────────────────────────────────────────────────────── -->
 <div id="modal-bg">
@@ -657,8 +704,152 @@ function resetToExample() {
   renderModal();
 }
 
+// ── Onboarding Tour ───────────────────────────────────────────────────────────
+const TOUR_STEPS = [
+  {
+    target: '#btn-step',
+    title: 'Step Through the Graph',
+    body: 'Click ▶ Step to expand the planning graph one stage at a time. Each click adds a new Action Level and Proposition Level to the right.',
+    pos: 'bottom',
+  },
+  {
+    target: '#btn-auto',
+    title: 'Auto-Run',
+    body: 'Click Auto to automatically step and search until a plan is found — great for watching the full algorithm run in one go.',
+    pos: 'bottom',
+  },
+  {
+    target: '#btn-search',
+    title: 'Search for a Plan',
+    body: 'After expanding a few stages, click Search. This runs the backward-chaining extraction algorithm to find the shortest parallel plan.',
+    pos: 'bottom',
+  },
+  {
+    target: '#graph-wrap',
+    title: 'The Planning Graph',
+    body: 'Blue columns are Proposition Levels — what can be true at each stage. Gray columns are Action Levels — what can happen. Hover any node for details.',
+    pos: 'top',
+  },
+  {
+    target: '#chk-mutex',
+    title: 'Mutex Arcs',
+    body: 'Red dashed arcs with ✕ show mutex pairs — propositions or actions that cannot coexist at the same level. Toggle this checkbox to show or hide them.',
+    pos: 'bottom',
+  },
+  {
+    target: '#btn-edit',
+    title: 'Edit Domain',
+    body: 'Want to try your own scenario? Click here to define your own propositions, initial state, goals, and operators — then run Graphplan on it.',
+    pos: 'bottom',
+  },
+  {
+    target: '.panels',
+    title: 'Info Panels',
+    body: 'After Search, the found plan appears here with each step\'s actions. Mutex relationships and the proposition set at each level are also shown below.',
+    pos: 'top',
+  },
+];
+
+let tourIdx = 0;
+
+function startTour() {
+  tourIdx = 0;
+  showTourStep();
+}
+
+function showTourStep() {
+  const step = TOUR_STEPS[tourIdx];
+  const target = document.querySelector(step.target);
+  if (!target) { advanceTour(); return; }
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+
+  // Small delay to let scroll settle before positioning
+  setTimeout(() => {
+    const pad = 7;
+    const rect = target.getBoundingClientRect();
+
+    // Spotlight
+    const sp = document.getElementById('tour-spotlight');
+    sp.style.display = 'block';
+    sp.style.left   = (rect.left   - pad) + 'px';
+    sp.style.top    = (rect.top    - pad) + 'px';
+    sp.style.width  = (rect.width  + pad*2) + 'px';
+    sp.style.height = (rect.height + pad*2) + 'px';
+
+    // Overlay (blocks clicks outside card)
+    const ov = document.getElementById('tour-overlay');
+    ov.style.display = 'block';
+    ov.style.pointerEvents = 'all';
+    ov.onclick = e => { if (e.target === ov) advanceTour(); };
+
+    // Card content
+    document.getElementById('tc-step').textContent  = `Step ${tourIdx+1} of ${TOUR_STEPS.length}`;
+    document.getElementById('tc-title').textContent = step.title;
+    document.getElementById('tc-body').textContent  = step.body;
+
+    const isLast = tourIdx === TOUR_STEPS.length - 1;
+    const nextBtn = document.getElementById('tc-next');
+    nextBtn.textContent = isLast ? 'Finish ✓' : 'Next →';
+
+    // Dots
+    const dotsEl = document.getElementById('tc-dots');
+    dotsEl.innerHTML = TOUR_STEPS.map((_,i) =>
+      `<div class="tc-dot${i===tourIdx?' active':''}"></div>`
+    ).join('');
+
+    // Position card
+    const card = document.getElementById('tour-card');
+    card.style.display = 'block';
+    const cw = 300, ch = 160; // approx card size
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const margin = 14;
+    let top, left;
+
+    if (step.pos === 'bottom' && rect.bottom + ch + margin < vh) {
+      top  = rect.bottom + margin;
+      left = Math.min(Math.max(rect.left + rect.width/2 - cw/2, 8), vw - cw - 8);
+    } else if (step.pos === 'top' || rect.top - ch - margin > 0) {
+      top  = rect.top - ch - margin;
+      left = Math.min(Math.max(rect.left + rect.width/2 - cw/2, 8), vw - cw - 8);
+    } else {
+      // fallback: right side
+      top  = Math.min(Math.max(rect.top + rect.height/2 - ch/2, 8), vh - ch - 8);
+      left = Math.min(rect.right + margin, vw - cw - 8);
+    }
+
+    card.style.top  = top  + 'px';
+    card.style.left = left + 'px';
+  }, 60);
+}
+
+function advanceTour() {
+  if (tourIdx < TOUR_STEPS.length - 1) {
+    tourIdx++;
+    showTourStep();
+  } else {
+    endTour();
+  }
+}
+
+function endTour() {
+  document.getElementById('tour-spotlight').style.display = 'none';
+  document.getElementById('tour-card').style.display      = 'none';
+  document.getElementById('tour-overlay').style.display   = 'none';
+  localStorage.setItem('graphplan-tour-done', '1');
+}
+
+document.getElementById('tc-next').addEventListener('click', advanceTour);
+document.getElementById('tc-skip').addEventListener('click', endTour);
+document.getElementById('btn-help').addEventListener('click', startTour);
+
 // Initial render
 render(); updateStatus();
+
+// Auto-start tour on first visit
+if (!localStorage.getItem('graphplan-tour-done')) {
+  setTimeout(startTour, 600);
+}
 </script>
 </body>
 </html>
