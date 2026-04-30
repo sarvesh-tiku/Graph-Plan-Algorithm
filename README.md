@@ -1,3 +1,4 @@
+<img width="1313" height="484" alt="Screenshot 2026-04-30 at 12 42 57" src="https://github.com/user-attachments/assets/55cc28e6-2eba-4178-bbab-86ab9f6bfb9a" />
 # Graphplan Algorithm Visualizer
 
 Interactive visualization of the **Graphplan AI planning algorithm** — built for CS 3511 Honors Algorithms at Georgia Tech.
