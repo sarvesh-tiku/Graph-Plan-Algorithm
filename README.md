@@ -3,10 +3,9 @@
 Interactive visualization of the **Graphplan AI planning algorithm** — built for CS 3511 Honors Algorithms at Georgia Tech.
 
 🔗 **[Live Demo](https://sarvesh-tiku.github.io/Graph-Plan-Algorithm/)**
+<img width="568" height="536" alt="a-star" src="https://github.com/user-attachments/assets/a1f0a184-6a87-4bc2-870a-1279934b5451" />
 
-![Graphplan Demo](https://your-gif-url-here.gif)
 
----
 
 ## What it does
 
@@ -14,7 +13,6 @@ Graphplan builds a layered graph of propositions and actions, uses **mutex const
 
 Default scenario: you're *asleep, hungry, at home* — goal is to be *awake, fed, dressed, at class*.
 
----
 
 ## Usage
 
@@ -27,19 +25,12 @@ Default scenario: you're *asleep, hungry, at home* — goal is to be *awake, fed
 
 Hover any node for details. Toggle **no-ops** and **mutex arcs** with the checkboxes.
 
----
 
 ## How it works
 
 1. **Expand** — alternates Proposition Levels and Action Levels; no-ops carry facts forward
 2. **Mutex** — marks action/proposition pairs that can't coexist at the same level
 3. **Search** — backward goal-regression once goals are reachable and non-mutex
-
----
-
-## Stack
-
-Pure HTML/CSS/JS — no dependencies, no build step.
 
 ---
 
