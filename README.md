@@ -6,13 +6,11 @@ An interactive visualization of the Graphplan AI planning algorithm, built for C
 
 <img width="1313" height="484" alt="Graphplan Visualizer" src="https://github.com/user-attachments/assets/55cc28e6-2eba-4178-bbab-86ab9f6bfb9a" />
 
----
 
 Graphplan builds a layered graph alternating proposition and action levels, propagates mutex constraints to prune impossible combinations, then runs backward goal-regression to extract a valid parallel plan — all without ever searching the full state space.
 
 The default scenario is minimal on purpose: start *asleep, hungry, at home*, reach *awake, fed, dressed, at class*. Simple enough to trace by hand, complex enough to show where the algorithm earns its keep.
 
----
 
 ## Usage
 
@@ -25,7 +23,6 @@ The default scenario is minimal on purpose: start *asleep, hungry, at home*, rea
 
 Hover any node or arc for inline detail. Mutex arcs and no-op actions are toggleable.
 
----
 
 ## How it works
 
@@ -33,7 +30,6 @@ Hover any node or arc for inline detail. Mutex arcs and no-op actions are toggle
 2. **Mutex propagation** — flag action/proposition pairs that cannot coexist at the same level, pruning the search space before extraction begins
 3. **Backward search** — once all goals appear non-mutex in a proposition level, regress through the graph toward the initial state
 
----
 
 <sub>**Sarvesh Tiku** · CS 3511 Honors Algorithms · Georgia Institute of Technology</sub>
 
